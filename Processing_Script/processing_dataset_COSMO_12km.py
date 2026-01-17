@@ -24,9 +24,9 @@ CHUNK_DICT_RAW = {"time": 50, "E": 100, "N": 100}
 CHUNK_DICT_LATLON = {"time": 50, "lat": 100, "lon": 100}
 
 BASE_DIR = Path(os.environ["BASE_DIR"])
-INPUT_DIR = BASE_DIR / "sasthana" / "Downscaling"/"Processing_and_Analysis_Scripts" / "data_1971_2023" / "HR_files_full"
+INPUT_DIR = BASE_DIR / "sasthana" / "Downscaling"/"COSMO_RGG" / "COSMO" / "COSMO_present"
 
-OUT_DIR = BASE_DIR / "sasthana" / "Downscaling" / "Downscaling_Models" / "Dataset_Setup_I_Chronological_12km"
+OUT_DIR = BASE_DIR / "sasthana" / "Downscaling" / "COSMO_RGG" /"COSMO_Training_Dataset_12km"
 
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -104,9 +104,9 @@ def interpolate_bicubic_shell(coarse_ds, target_ds, varname):
         output_file = Path(tmpdir) / "interp.nc"
         coarse_ds[[varname]].transpose("time", "N", "E").to_netcdf(coarse_file)
         target_ds[[varname]].transpose("time", "N", "E").to_netcdf(target_file)
-        script_path = BASE_DIR / "sasthana" / "Downscaling" / "Processing_and_Analysis_Scripts" / "Python_Pipeline_Scripts" / "bicubic_interpolation.sh"
+        script_path = BASE_DIR / "sasthana" / "Downscaling" /"COSMO_RGG"/"Processing_Script"/"bicubic_interpolation.sh"
         
-        working_dir = BASE_DIR / "sasthana" / "Downscaling" / "Processing_and_Analysis_Scripts" / "Python_Pipeline_Scripts"
+        working_dir = BASE_DIR / "sasthana" / "Downscaling" /"COSMO_RGG"/"Processing_Script"
         
         os.chmod(script_path, 0o755)
         
@@ -250,10 +250,8 @@ def main():
     varname = args.var
 
     dataset_map = {
-        "RhiresD": ("RhiresD_1971_2023.nc", "quantile", "RhiresD"),
-        "TabsD":   ("TabsD_1971_2023.nc", "standard", "TabsD"),
-        "TminD":   ("TminD_1971_2023.nc", "standard", "TminD"),
-        "TmaxD":   ("TmaxD_1971_2023.nc", "standard", "TmaxD"),
+        "TOT_PREC": ("COSMO_totprec_daily_present_europe.nc", "log", "TOT_PREC"),
+        "T_2M":   ("COSMO_t2m_present_europe.nc", "standard", "T_2M"),
     }
 
     infile, scale_type, varname_in_file = dataset_map[varname]
@@ -273,7 +271,7 @@ def main():
         else:
             ds.close()
             ds = promote_latlon(infile_path, varname_in_file)
-        if varname == "RhiresD":
+        if varname == "TOT_PREC":
             ds[varname_in_file] = xr.where(ds[varname_in_file] < 0.1, 0, ds[varname_in_file])
         ds.to_netcdf(step1_path)
         ds.close()
@@ -283,7 +281,7 @@ def main():
     step2_path = OUT_DIR / f"{varname}_step2_coarse.nc"
     if not step2_path.exists():
         coarse_ds = conservative_coarsening(highres_ds, varname_in_file, block_size=12)
-        if varname == "RhiresD":
+        if varname == "TOT_PREC":
             coarse_ds[varname_in_file] = xr.where(coarse_ds[varname_in_file] < 0.0, 0, coarse_ds[varname_in_file])
         coarse_ds.to_netcdf(step2_path)
         coarse_ds.close()
@@ -293,29 +291,28 @@ def main():
     if not step3_path.exists():
         interp_ds = interpolate_bicubic_shell(coarse_ds, highres_ds, varname_in_file)
         interp_ds = interp_ds.chunk(get_chunk_dict(interp_ds))
-        if varname == "RhiresD":
+        if varname == "TOT_PREC":
             interp_ds[varname_in_file] = xr.where(interp_ds[varname_in_file] < 0, 0, interp_ds[varname_in_file])
         interp_ds.to_netcdf(step3_path)
         interp_ds.close()
     interp_ds = xr.open_dataset(step3_path).chunk(get_chunk_dict(xr.open_dataset(step3_path)))
 
-    highres = highres_ds[varname_in_file].sel(time=slice("1971-01-01", "2023-12-31"))
-    upsampled = interp_ds[varname_in_file].sel(time=slice("1971-01-01", "2023-12-31"))
-    years = upsampled['time.year'].values
+    highres = highres_ds[varname_in_file]
+    upsampled = interp_ds[varname_in_file]
+    n = highres.sizes['time']
 
-    train_mask = (years >= 1971) & (years <= 2000)
-    val_mask   = (years >= 2001) & (years <= 2010)
-    test_mask  = (years >= 2011) & (years <= 2023)
+    n_train = int(n * 0.7)
+    n_val = int(n * 0.2)
+    n_test = n - n_train - n_val
 
-    x_train = upsampled.isel(time=train_mask)
-    y_train = highres.isel(time=train_mask)
-    x_val   = upsampled.isel(time=val_mask)
-    y_val   = highres.isel(time=val_mask)
-    x_test  = upsampled.isel(time=test_mask)
-    y_test  = highres.isel(time=test_mask)
+    x_train = upsampled.isel(time=slice(0, n_train))
+    y_train = highres.isel(time=slice(0, n_train))
+    x_val = upsampled.isel(time=slice(n_train, n_train + n_val))
+    y_val = highres.isel(time=slice(n_train, n_train + n_val))
+    x_test = upsampled.isel(time=slice(n_train + n_val, n_train + n_val + n_test))
+    y_test = highres.isel(time=slice(n_train + n_val, n_train + n_val + n_test))
 
-
-    if varname == "RhiresD" and scale_type == "yeojohnson":
+    if varname == "TOT_PREC" and scale_type == "yeojohnson":
         stats, pt = get_stats_sklearn_yeojohnson(y_train)
         x_train_scaled = apply_sklearn_yeojohnson(x_train, pt)
         x_val_scaled = apply_sklearn_yeojohnson(x_val, pt)
@@ -325,7 +322,7 @@ def main():
         y_test_scaled = apply_sklearn_yeojohnson(y_test, pt)
         pt_to_save = pt
 
-    elif varname == "RhiresD" and scale_type == "quantile":
+    elif varname == "TOT_PREC" and scale_type == "quantile":
         qt = get_stats_sklearn_quantile(y_train)
         x_train_scaled = apply_sklearn_quantile(x_train, qt)
         x_val_scaled = apply_sklearn_quantile(x_val, qt)
