@@ -43,6 +43,6 @@ for file in "${PRECIP_FILES[@]}"; do
     done
 
 echo "Concatenating precip files"
-cdo cat "$TMP_dir"/*.nc "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present/COSMO_precip_present.nc"
+cdo mergetime "$TMP_dir"/*.nc "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present/COSMO_precip_present.nc"
 rm -r "$TMP_dir"
 echo "Done with precip"

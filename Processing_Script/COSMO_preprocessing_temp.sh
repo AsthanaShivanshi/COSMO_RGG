@@ -46,7 +46,7 @@ for file in "${T2M_FILES[@]}"; do
 
 echo "Concatenating temp files"
 
-cdo cat "$TMP_dir"/*.nc "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present/COSMO_t2m_present.nc"
+cdo mergetime "$TMP_dir"/*.nc "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present/COSMO_t2m_present.nc"
 rm -r "$TMP_dir"
 
 echo "Done with temp"
