@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name=Precip_Present_COSMO_preprocessing
+#SBATCH --job-name=Precip_PGW_COSMO_preprocessing
 #SBATCH --chdir=/work/FAC/FGSE/IDYST/tbeucler/downscaling
-#SBATCH --output=sasthana/Downscaling/COSMO_RGG/logs/present_cosmo_%A_%a.log
-#SBATCH --error=sasthana/Downscaling/COSMO_RGG/logs/present_cosmo_%A_%a.log
+#SBATCH --output=sasthana/Downscaling/COSMO_RGG/logs/pgw_cosmo_%A_%a.log
+#SBATCH --error=sasthana/Downscaling/COSMO_RGG/logs/pgw_cosmo_%A_%a.log
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4       
 #SBATCH --mem=256G
@@ -18,13 +18,13 @@ BASE_DIR="/work/FAC/FGSE/IDYST/tbeucler/downscaling"
 
 cd "$BASE_DIR" || { echo "failed to cd into base dir"; exit 1; }
 
-mkdir -p "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present"
+mkdir -p "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_pgw"
 
 
 
-PRECIP_DIR="/reference/FGSE/climate_simulations/cosmo6_2km_climate/5min_2D/"
+PRECIP_DIR="/reference/FGSE/climate_simulations/cosmo6_2km_climate_PGW_MPI_HR/5min_2D/"
 
-TMP_dir=$(mktemp -d "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present/precip_temp_XXXXXX")
+TMP_dir=$(mktemp -d "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_pgw/precip_temp_XXXXXX")
 
 echo "Temporary directory: $TMP_dir"
 
@@ -33,7 +33,7 @@ PRECIP_FILES=($PRECIP_DIR/*.nz)
 COUNTER=0
 
 echo "Number of PRECIP files: ${#PRECIP_FILES[@]}"
-echo "Porcessing precipitation files"
+echo "Porcessing precip files"
 
 for file in "${PRECIP_FILES[@]}"; do
     COUNTER=$((COUNTER + 1))
@@ -43,7 +43,7 @@ for file in "${PRECIP_FILES[@]}"; do
     done
 
 echo "Concatenating precip files"
-cdo -timselsum,12 -mergetime "$TMP_dir"/*.nc "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_present/COSMO_precip_present.nc"
+cdo -timselsum,12 -mergetime "$TMP_dir"/*.nc "$BASE_DIR/sasthana/Downscaling/COSMO_RGG/COSMO/COSMO_pgw/COSMO_precip_pgw.nc"
 
 rm -r "$TMP_dir"
 echo "Done with precip"
